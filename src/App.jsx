@@ -1,10 +1,21 @@
-import { useState } from 'react'
-import { MapContainer, TileLayer, Marker, Polyline, useMapEvents } from 'react-leaflet'
-import L from 'leaflet'
-import Sidebar from './Sidebar'
-import { addPoint, addLine, addPointFromText, parseCoords, loadFromStorage, clearAll } from './mapFunctions'
-import './App.css'
+import axios from 'axios';
+import { useState } from 'react';
+import { MapContainer, TileLayer, Marker, Polyline, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
+import Sidebar from './Sidebar';
+import {
+  addPoint,
+  addLine,
+  addPointFromText,
+  parseCoords,
+  loadFromStorage,
+  clearAll,
+  removePoint,
+  removeLine
+} from './mapFunctions';
+import './App.css';
 
+// Fix Leaflet icon path for markers
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
@@ -12,6 +23,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
+// Map click handler
 function MapClickHandler({ onMapClick }) {
   useMapEvents({
     click: (e) => {
@@ -40,12 +52,14 @@ function App() {
       } else {
         const newSelected = [...selectedForLine, pointId];
         setSelectedForLine(newSelected);
-        
+
         if (newSelected.length === 2) {
           addLine(lines, setLines, newSelected[0], newSelected[1]);
           setSelectedForLine([]);
         }
       }
+    } else if (mode === 'remove') {
+      removePoint(points, setPoints, lines, setLines, pointId);
     }
   };
 
@@ -56,26 +70,26 @@ function App() {
 
   return (
     <div style={{ display: 'flex', height: '100vh' }}>
-      {/* Map side */}
+      {/* Map Section */}
       <div style={{ flex: 1, position: 'relative' }}>
-        <MapContainer 
-          center={[40.7128, -74.0060]} 
-          zoom={13} 
+        <MapContainer
+          center={[40.7128, -74.0060]}
+          zoom={13}
           style={{ height: '100%', width: '100%' }}
         >
           <TileLayer
             url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           />
-          
+
           <MapClickHandler onMapClick={handleMapClick} />
-          
-          {/* Render points */}
+
+          {/* Render Points */}
           {Array.from(points).map((pointId) => {
             const [lat, lng] = parseCoords(pointId);
             const isSelectedForLine = selectedForLine.includes(pointId);
             return (
-              <Marker 
+              <Marker
                 key={pointId}
                 position={[lat, lng]}
                 eventHandlers={{
@@ -85,24 +99,31 @@ function App() {
               />
             );
           })}
-          
-          {/* Render lines */}
+
+          {/* Render Lines */}
           {Array.from(lines).map((lineId) => {
             const [start, end] = lineId.split('|');
             const startCoords = parseCoords(start);
             const endCoords = parseCoords(end);
             return (
-              <Polyline 
+              <Polyline
                 key={lineId}
                 positions={[startCoords, endCoords]}
                 color="blue"
                 weight={3}
+                eventHandlers={{
+                  click: () => {
+                    if (mode === 'remove') {
+                      removeLine(lines, setLines, lineId);
+                    }
+                  }
+                }}
               />
             );
           })}
         </MapContainer>
 
-        {/* Mode indicator */}
+        {/* Mode Display */}
         <div style={{
           position: 'absolute',
           top: '10px',
@@ -120,44 +141,22 @@ function App() {
               Selected: {selectedForLine.length}/2
             </div>
           )}
-          {mode === 'path' && selectedForPath.length > 0 && (
-            <div style={{ fontSize: '12px', fontWeight: 'normal' }}>
-              Path points: {selectedForPath.length}
-              {selectedForPath.length >= 2 && (
-                <button 
-                  onClick={createPath}
-                  style={{
-                    marginLeft: '5px',
-                    padding: '2px 6px',
-                    fontSize: '10px',
-                    background: '#28a745',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '2px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Create Path
-                </button>
-              )}
-            </div>
-          )}
         </div>
       </div>
 
       {/* Sidebar */}
-      <Sidebar 
+      <Sidebar
         mode={mode}
         setMode={setMode}
         points={points}
         setPoints={setPoints}
         lines={lines}
         setLines={setLines}
-        onClearAll={handleClearAll}
+        onClearAll={() => clearAll(points, setPoints, lines, setLines)}
         addPointFromText={addPointFromText}
       />
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
